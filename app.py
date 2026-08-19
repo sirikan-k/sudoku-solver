@@ -53,7 +53,7 @@ def find_empty(board):
 def solve_and_count(board, solutions):
     """อัลกอริทึม Backtracking สำหรับค้นหาและนับจำนวนคำตอบ"""
     if len(solutions) >= 2:
-        return # หยุดทันทีเมื่อพบคำตอบมากกว่า 1 แบบ
+        return
 
     empty = find_empty(board)
     if not empty:
@@ -69,15 +69,12 @@ def solve_and_count(board, solutions):
 
 def process_sudoku(board):
     """ฟังก์ชันหลักในการตรวจสอบและแยกกรณีพิเศษทั้งหมด"""
-    # กรณีที่ 1: โจทย์มีเงื่อนไขขัดแย้งตั้งแต่ต้น
     if check_initial_conflicts(board):
         return "NO SOLUTION", None
 
-    # กรณีที่ 2: ตารางกรอกครบอยู่แล้วตั้งแต่แรก
     if find_empty(board) is None:
         return "COMPLETED", board
 
-    # กรณีที่ 3: ค้นหาคำตอบด้วย Backtracking
     solutions = []
     solve_and_count(board, solutions)
 
@@ -87,6 +84,60 @@ def process_sudoku(board):
         return "SUCCESS", solutions[0]
     else:
         return "MULTIPLE SOLUTIONS", None
+
+def render_sudoku_html(board):
+    """สร้าง HTML Table แบบปรับแต่ง CSS สำหรับแสดงผลตารางซูโดกุ"""
+    html = """
+    <style>
+        .sudoku-container {
+            display: flex;
+            justify-content: center;
+            margin: 15px 0;
+        }
+        .sudoku-table {
+            border-collapse: collapse;
+            border: 3px solid #111111;
+            background-color: #ffffff;
+            user-select: none;
+        }
+        .sudoku-table td {
+            width: 42px;
+            height: 42px;
+            text-align: center;
+            vertical-align: middle;
+            font-size: 20px;
+            font-weight: bold;
+            color: #111111;
+            border: 1px solid #b0b0b0;
+        }
+        .border-right-thick { border-right: 3px solid #111111 !important; }
+        .border-bottom-thick { border-bottom: 3px solid #111111 !important; }
+        .empty-cell { color: transparent; }
+    </style>
+    <div class="sudoku-container">
+        <table class="sudoku-table">
+    """
+    for r in range(9):
+        html += "<tr>"
+        for c in range(9):
+            classes = []
+            if (c + 1) % 3 == 0 and c < 8:
+                classes.append("border-right-thick")
+            if (r + 1) % 3 == 0 and r < 8:
+                classes.append("border-bottom-thick")
+            
+            val = board[r][c]
+            if val == 0:
+                classes.append("empty-cell")
+                display_val = "0"
+            else:
+                display_val = str(val)
+                
+            class_str = f'class="{" ".join(classes)}"' if classes else ""
+            html += f'<td {class_str}>{display_val}</td>'
+        html += "</tr>"
+    html += "</table></div>"
+    return html
 
 # --- ส่วนการแสดงผล WEB INTERFACE (Streamlit) ---
 def run_web():
@@ -102,7 +153,7 @@ def run_web():
             board = parse_txt_content(content)
             
             st.subheader("📋 ตารางข้อมูลนำเข้า (Input)")
-            st.dataframe(board)
+            st.markdown(render_sudoku_html(board), unsafe_allow_html=True)
 
             status, result = process_sudoku(board)
 
@@ -113,16 +164,15 @@ def run_web():
                 st.warning("⚠️ MULTIPLE SOLUTIONS (โจทย์มีคำตอบได้มากกว่า 1 แบบ)")
             elif status == "COMPLETED":
                 st.info("ℹ️ ตารางนี้กรอกสมบูรณ์และถูกต้องอยู่แล้ว:")
-                st.dataframe(result)
+                st.markdown(render_sudoku_html(result), unsafe_allow_html=True)
             elif status == "SUCCESS":
                 st.success("🎉 เติมตัวเลขสมบูรณ์ตามกติกา:")
-                st.dataframe(result)
+                st.markdown(render_sudoku_html(result), unsafe_allow_html=True)
 
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการอ่านไฟล์: {e}")
 
 if __name__ == "__main__":
-    # รองรับการรันผ่าน Command Line: python app.py <filename.txt>
     if len(sys.argv) > 1 and not sys.argv[1].endswith("app.py"):
         try:
             with open(sys.argv[1], 'r') as f:
