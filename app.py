@@ -17,8 +17,35 @@ def parse_txt_content(content_str):
         raise ValueError("รูปแบบตารางไม่ตรงตามขนาด 9x9")
     return board
 
+def check_initial_conflicts_detailed(board):
+    """ตรวจสอบความขัดแย้งของโจทย์เริ่มต้น และส่งคืนรายการเหตุผลโดยละเอียด"""
+    conflicts = []
+    for r in range(9):
+        for c in range(9):
+            num = board[r][c]
+            if num != 0:
+                # ตรวจสอบการซ้ำในแถวเดียวกัน
+                for c2 in range(c + 1, 9):
+                    if board[r][c2] == num:
+                        conflicts.append(f"เลข **{num}** ซ้ำกันในแถวที่ {r+1} (ตำแหน่งหลักที่ {c+1} และ {c2+1})")
+                # ตรวจสอบการซ้ำในหลัก (Column) เดียวกัน
+                for r2 in range(r + 1, 9):
+                    if board[r2][c] == num:
+                        conflicts.append(f"เลข **{num}** ซ้ำกันในหลักที่ {c+1} (ตำแหน่งแถวที่ {r+1} และ {r2+1})")
+                # ตรวจสอบการซ้ำในบล็อกย่อย 3x3
+                sr, sc = 3 * (r // 3), 3 * (c // 3)
+                for r2 in range(sr, sr + 3):
+                    for c2 in range(sc, sc + 3):
+                        if (r2 > r or (r2 == r and c2 > c)) and board[r2][c2] == num:
+                            if r2 != r and c2 != c: # ป้องกันการแจ้งซ้ำกับแถว/หลัก
+                                conflicts.append(
+                                    f"เลข **{num}** ซ้ำกันในบล็อก 3x3 เดียวกัน "
+                                    f"(ตำแหน่ง แถว {r+1} หลัก {c+1} กับ แถว {r2+1} หลัก {c2+1})"
+                                )
+    return conflicts
+
 def is_valid(board, row, col, num):
-    """ตรวจสอบเงื่อนไขความถูกต้อง (Constraint Satisfaction)"""
+    """ตรวจสอบเงื่อนไขความถูกต้องระหว่างการ Backtracking"""
     for i in range(9):
         if board[row][i] == num or board[i][col] == num:
             return False
@@ -29,19 +56,6 @@ def is_valid(board, row, col, num):
                 return False
     return True
 
-def check_initial_conflicts(board):
-    """ตรวจสอบว่าโจทย์ที่ให้มามีตัวเลขขัดแย้งกันเองตั้งแต่ต้นหรือไม่"""
-    for r in range(9):
-        for c in range(9):
-            if board[r][c] != 0:
-                temp = board[r][c]
-                board[r][c] = 0
-                if not is_valid(board, r, c, temp):
-                    board[r][c] = temp
-                    return True
-                board[r][c] = temp
-    return False
-
 def find_empty(board):
     """ค้นหาตำแหน่งช่องว่าง (เลข 0)"""
     for r in range(9):
@@ -51,7 +65,7 @@ def find_empty(board):
     return None
 
 def solve_and_count(board, solutions):
-    """อัลกอริทึม Backtracking สำหรับค้นหาและนับจำนวนคำตอบ"""
+    """อัลกอริทึม Backtracking ค้นหาคำตอบ"""
     if len(solutions) >= 2:
         return
 
@@ -68,25 +82,33 @@ def solve_and_count(board, solutions):
             board[row][col] = 0
 
 def process_sudoku(board):
-    """ฟังก์ชันหลักในการตรวจสอบและแยกกรณีพิเศษทั้งหมด"""
-    if check_initial_conflicts(board):
-        return "NO SOLUTION", None
+    """วิเคราะห์ผลลัพธ์และส่งคืนประเภทสถานะ ตารางผลลัพธ์ และเหตุผลโดยละเอียด"""
+    original_board = copy.deepcopy(board)
+    
+    # 1. ตรวจสอบเงื่อนไขขัดแย้งในโจทย์เริ่มต้น
+    conflicts = check_initial_conflicts_detailed(board)
+    if conflicts:
+        return "INITIAL_CONFLICT", None, conflicts, original_board
 
+    # 2. กรณีตารางกรอกครบอยู่แล้ว
     if find_empty(board) is None:
-        return "COMPLETED", board
+        return "COMPLETED", board, [], original_board
 
+    # 3. คำนวณแก้โจทย์ด้วย Backtracking
     solutions = []
     solve_and_count(board, solutions)
 
     if len(solutions) == 0:
-        return "NO SOLUTION", None
+        reasons = ["โจทย์ไม่มีข้อขัดแย้งเริ่มต้น แต่เมื่อลองเติมตัวเลขตามกฎย้อนกลับ (Backtracking) เกิดสถานการณ์ทางตัน (Deadlock) เนื่องจากเงื่อนไขบีบบังคับในบางช่องทำให้ไม่มีตัวเลข 1-9 ที่ลงได้"]
+        return "NO_SOLUTION", None, reasons, original_board
     elif len(solutions) == 1:
-        return "SUCCESS", solutions[0]
+        return "SUCCESS", solutions[0], [], original_board
     else:
-        return "MULTIPLE SOLUTIONS", None
+        reasons = ["โจทย์ระบุตัวเลขเริ่มต้นน้อยเกินไป ทำให้โครงสร้างตารางมีรูปแบบคำตอบที่เป็นไปได้มากกว่า 1 ชุด"]
+        return "MULTIPLE_SOLUTIONS", None, reasons, original_board
 
-def render_sudoku_html(board):
-    """สร้าง HTML Table แบบปรับแต่ง CSS สำหรับแสดงผลตารางซูโดกุ"""
+def render_sudoku_html(board, original_board=None):
+    """แสดงผลตารางซูโดกุ แยกสีตัวเลขเดิม (สีดำ) และตัวเลขที่เติมใหม่ (สีน้ำเงิน)"""
     html = """
     <style>
         .sudoku-container {
@@ -107,11 +129,12 @@ def render_sudoku_html(board):
             vertical-align: middle;
             font-size: 20px;
             font-weight: bold;
-            color: #111111;
             border: 1px solid #b0b0b0;
         }
         .border-right-thick { border-right: 3px solid #111111 !important; }
         .border-bottom-thick { border-bottom: 3px solid #111111 !important; }
+        .given-number { color: #111111; } /* ตัวเลขโจทย์เดิม (สีดำ) */
+        .filled-number { color: #2563eb; } /* ตัวเลขที่อัลกอริทึมเติม (สีน้ำเงิน) */
         .empty-cell { color: transparent; }
     </style>
     <div class="sudoku-container">
@@ -132,7 +155,12 @@ def render_sudoku_html(board):
                 display_val = "0"
             else:
                 display_val = str(val)
-                
+                # แยกแยะว่าเดิมเป็น 0 แต่ถูกเติมใหม่หรือไม่
+                if original_board and original_board[r][c] == 0:
+                    classes.append("filled-number")
+                else:
+                    classes.append("given-number")
+                    
             class_str = f'class="{" ".join(classes)}"' if classes else ""
             html += f'<td {class_str}>{display_val}</td>'
         html += "</tr>"
@@ -155,19 +183,35 @@ def run_web():
             st.subheader("📋 ตารางข้อมูลนำเข้า (Input)")
             st.markdown(render_sudoku_html(board), unsafe_allow_html=True)
 
-            status, result = process_sudoku(board)
+            status, result, details, orig_board = process_sudoku(board)
 
             st.subheader("🎯 ผลการประมวลผล (Output)")
-            if status == "NO SOLUTION":
-                st.error("❌ NO SOLUTION (โจทย์ขัดแย้งกันเองหรือไม่มีคำตอบที่ถูกต้อง)")
-            elif status == "MULTIPLE SOLUTIONS":
-                st.warning("⚠️ MULTIPLE SOLUTIONS (โจทย์มีคำตอบได้มากกว่า 1 แบบ)")
+            
+            if status == "INITIAL_CONFLICT":
+                st.error("❌ NO SOLUTION: โจทย์มีเงื่อนไขขัดแย้งกันเองตั้งแต่เริ่มต้น")
+                st.markdown("**สาเหตุที่ไม่สามารถประมวลผลได้:**")
+                for err in details:
+                    st.write(f"- {err}")
+
+            elif status == "NO_SOLUTION":
+                st.error("❌ NO SOLUTION: ไม่สามารถหาคำตอบที่ถูกต้องได้")
+                st.markdown("**สาเหตุที่ไม่สามารถประมวลผลได้:**")
+                for err in details:
+                    st.write(f"- {err}")
+
+            elif status == "MULTIPLE_SOLUTIONS":
+                st.warning("⚠️ MULTIPLE SOLUTIONS: โจทย์มีคำตอบได้มากกว่า 1 แบบ")
+                st.markdown("**ข้อสังเกต:**")
+                for err in details:
+                    st.write(f"- {err}")
+
             elif status == "COMPLETED":
-                st.info("ℹ️ ตารางนี้กรอกสมบูรณ์และถูกต้องอยู่แล้ว:")
-                st.markdown(render_sudoku_html(result), unsafe_allow_html=True)
+                st.info("ℹ️ ตารางนี้กรอกตัวเลขสมบูรณ์และถูกต้องอยู่แล้ว:")
+                st.markdown(render_sudoku_html(result, orig_board), unsafe_allow_html=True)
+
             elif status == "SUCCESS":
-                st.success("🎉 เติมตัวเลขสมบูรณ์ตามกติกา:")
-                st.markdown(render_sudoku_html(result), unsafe_allow_html=True)
+                st.success("🎉 เติมตัวเลขสมบูรณ์ตามกติกา (ตัวเลขที่เติมใหม่แสดงด้วยสีน้ำเงิน):")
+                st.markdown(render_sudoku_html(result, orig_board), unsafe_allow_html=True)
 
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการอ่านไฟล์: {e}")
@@ -177,9 +221,12 @@ if __name__ == "__main__":
         try:
             with open(sys.argv[1], 'r') as f:
                 board = parse_txt_content(f.read())
-            status, result = process_sudoku(board)
-            if status in ["NO SOLUTION", "MULTIPLE SOLUTIONS"]:
+            status, result, details, _ = process_sudoku(board)
+            if status in ["INITIAL_CONFLICT", "NO_SOLUTION", "MULTIPLE_SOLUTIONS"]:
                 print(status)
+                print("Reasons:")
+                for d in details:
+                    print(f"- {d}")
             elif status in ["SUCCESS", "COMPLETED"]:
                 print("--- RESULT ---")
                 for row in result:
