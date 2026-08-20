@@ -3,7 +3,6 @@ import copy
 import numpy as np
 import streamlit as st
 
-# ตรวจสอบ Library สำหรับอ่านรูปภาพ
 try:
     import cv2
     import pytesseract
@@ -13,7 +12,6 @@ except ImportError:
     HAS_IMAGE_OCR = False
 
 def parse_txt_content(content_str):
-    """แปลงเนื้อหาจากไฟล์ข้อความ .txt เป็นตาราง 2 มิติขนาด 9x9"""
     lines = content_str.strip().split('\n')
     board = []
     for line in lines:
@@ -28,29 +26,22 @@ def parse_txt_content(content_str):
     return board
 
 def parse_image_to_board(image_bytes):
-    """ตัดช่องตารางจากรูปภาพและใช้อัลกอริทึม OCR อ่านตัวเลข 1-9"""
     if not HAS_IMAGE_OCR:
         raise RuntimeError("ระบบยังไม่ได้ติดตั้ง OpenCV หรือ PyTesseract")
         
     file_bytes = np.asarray(bytearray(image_bytes), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
-    # ปรับขนาดภาพเป็น 450x450 เพื่อแบ่งช่องละ 50x50
     resized = cv2.resize(gray, (450, 450))
     
     board = []
     for r in range(9):
         row = []
         for c in range(9):
-            # ตัดช่องเฉพาะส่วนกลางเพื่อหลบเส้นขอบตาราง
             cell = resized[r*50:(r+1)*50, c*50:(c+1)*50]
             cell_cropped = cell[6:44, 6:44]
-            
-            # แปลงภาพเป็นขาวดำ
             _, thresh = cv2.threshold(cell_cropped, 160, 255, cv2.THRESH_BINARY_INV)
             
-            # ตรวจสอบว่ามีพิกเซลตัวเลขหรือไม่
             if cv2.countNonZero(thresh) < 25:
                 row.append(0)
             else:
@@ -61,7 +52,6 @@ def parse_image_to_board(image_bytes):
     return board
 
 def check_initial_conflicts_detailed(board):
-    """ตรวจสอบความขัดแย้งของโจทย์เริ่มต้น"""
     conflicts = []
     for r in range(9):
         for c in range(9):
@@ -180,17 +170,45 @@ def render_sudoku_html(board, original_board=None):
 def run_web():
     st.set_page_config(page_title="Sudoku Solver", page_icon="🧩")
     
-    # CSS ตกแต่งช่องกรอกตัวเลขไม่ให้ลายตา
+    # CSS ตกแต่งตารางกรอกตัวเลขให้มีเส้นขอบสีดำและแบ่งบล็อก 3x3 เหมือนโซดุกุจริง
     st.markdown("""
         <style>
-            div[data-testid="column"] { padding: 1px !important; }
-            .stNumberInput input { 
-                text-align: center; 
-                font-weight: bold; 
-                font-size: 18px !important;
-                border-radius: 4px;
+            div[data-testid="stColumn"] {
+                padding: 0px !important;
+                margin: 0px !important;
             }
-            .block-separator { margin-bottom: 8px; }
+            div[data-testid="stNumberInput"] {
+                margin: 0px !important;
+                padding: 0px !important;
+            }
+            div[data-testid="stNumberInput"] input { 
+                text-align: center !important; 
+                font-weight: bold !important; 
+                font-size: 20px !important;
+                height: 44px !important;
+                border-radius: 0px !important;
+                border: 1px solid #b0b0b0 !important;
+                background-color: #ffffff !important;
+                color: #111111 !important;
+            }
+            /* ซ่อนปุ่ม +/- ของช่องกรอกตัวเลข */
+            div[data-testid="stNumberInput"] button {
+                display: none !important;
+            }
+            /* เพิ่มเส้นขอบหนาแนวตั้งแบ่งบล็อก 3x3 */
+            div[data-testid="stColumn"]:nth-child(3n) div[data-testid="stNumberInput"] input {
+                border-right: 3px solid #111111 !important;
+            }
+            div[data-testid="stColumn"]:nth-child(1) div[data-testid="stNumberInput"] input {
+                border-left: 3px solid #111111 !important;
+            }
+            .grid-border-top {
+                border-top: 3px solid #111111;
+            }
+            .grid-border-bottom-thick {
+                border-bottom: 3px solid #111111;
+                margin-bottom: 0px;
+            }
         </style>
     """, unsafe_allow_html=True)
 
@@ -225,13 +243,14 @@ def run_web():
                 st.error(f"เกิดข้อผิดพลาดในการสแกนรูปภาพ: {e}")
 
     else:
-        st.write("กรอกตัวเลข 1-9 ลงในช่อง (ใส่ 0 สำหรับช่องว่าง):")
+        st.write("กรอกตัวเลข 1-9 ลงในช่อง (ใส่ 0 หรือปล่อยว่างไว้สำหรับช่องว่าง):")
         grid_input = []
+        
+        st.markdown('<div class="grid-border-top"></div>', unsafe_allow_html=True)
         for r in range(9):
             cols = st.columns(9)
             row_vals = []
             for c in range(9):
-                # ตกแต่งพื้นหลังสลับบล็อก 3x3 เพื่อลดความลายตา
                 val = cols[c].number_input(
                     label=f"r{r}c{c}",
                     min_value=0, max_value=9, value=0, step=1,
@@ -239,9 +258,12 @@ def run_web():
                 )
                 row_vals.append(val)
             grid_input.append(row_vals)
-            if (r + 1) % 3 == 0 and r < 8:
-                st.markdown('<div class="block-separator"></div>', unsafe_allow_html=True)
-        
+            
+            # สั่งขีดเส้นขอบหนาแนวนอนสำหรับแถวที่ 3, 6 และ 9
+            if (r + 1) % 3 == 0:
+                st.markdown('<div class="grid-border-bottom-thick"></div>', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🧩 คำนวณแก้โจทย์", type="primary"):
             board = grid_input
 
