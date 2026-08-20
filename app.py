@@ -126,15 +126,15 @@ def process_sudoku(board):
     elif len(solutions) == 1:
         return "SUCCESS", solutions[0], [], original_board
     else:
-        reasons = ["โจทย์ระบุตัวเลขเริ่มต้นน้อยเกินไป ทำให้ตารางมีรูปแบบคำตอบที่เป็นไปได้มากกว่า 1 ชุด"]
-        return "MULTIPLE_SOLUTIONS", None, reasons, original_board
+        reasons = ["โจทย์ระบุตัวเลขเริ่มต้นน้อยเกินไป ทำให้มีรูปแบบคำตอบที่เป็นไปได้มากกว่า 1 ชุด (แสดงตัวอย่าง 2 คำตอบด้านล่าง)"]
+        return "MULTIPLE_SOLUTIONS", solutions[:2], reasons, original_board
 
 def render_sudoku_html(board, original_board=None):
     html = """
     <style>
-        .sudoku-container { display: flex; justify-content: center; margin: 15px 0; }
+        .sudoku-container { display: flex; justify-content: center; margin: 10px 0; }
         .sudoku-table { border-collapse: collapse; border: 3px solid #111111; background-color: #ffffff; }
-        .sudoku-table td { width: 42px; height: 42px; text-align: center; font-size: 20px; font-weight: bold; border: 1px solid #b0b0b0; }
+        .sudoku-table td { width: 36px; height: 36px; text-align: center; font-size: 18px; font-weight: bold; border: 1px solid #b0b0b0; }
         .border-right-thick { border-right: 3px solid #111111 !important; }
         .border-bottom-thick { border-bottom: 3px solid #111111 !important; }
         .given-number { color: #111111; }
@@ -168,47 +168,27 @@ def render_sudoku_html(board, original_board=None):
     return html
 
 def run_web():
-    st.set_page_config(page_title="Sudoku Solver", page_icon="🧩")
+    st.set_page_config(page_title="Sudoku Solver", page_icon="🧩", layout="wide")
     
-    # CSS ตกแต่งตารางกรอกตัวเลขให้มีเส้นขอบสีดำและแบ่งบล็อก 3x3 เหมือนโซดุกุจริง
     st.markdown("""
         <style>
-            div[data-testid="stColumn"] {
-                padding: 0px !important;
-                margin: 0px !important;
-            }
-            div[data-testid="stNumberInput"] {
-                margin: 0px !important;
-                padding: 0px !important;
-            }
+            div[data-testid="stColumn"] { padding: 0px !important; margin: 0px !important; }
+            div[data-testid="stNumberInput"] { margin: 0px !important; padding: 0px !important; }
             div[data-testid="stNumberInput"] input { 
                 text-align: center !important; 
                 font-weight: bold !important; 
-                font-size: 20px !important;
-                height: 44px !important;
+                font-size: 18px !important;
+                height: 40px !important;
                 border-radius: 0px !important;
                 border: 1px solid #b0b0b0 !important;
                 background-color: #ffffff !important;
                 color: #111111 !important;
             }
-            /* ซ่อนปุ่ม +/- ของช่องกรอกตัวเลข */
-            div[data-testid="stNumberInput"] button {
-                display: none !important;
-            }
-            /* เพิ่มเส้นขอบหนาแนวตั้งแบ่งบล็อก 3x3 */
-            div[data-testid="stColumn"]:nth-child(3n) div[data-testid="stNumberInput"] input {
-                border-right: 3px solid #111111 !important;
-            }
-            div[data-testid="stColumn"]:nth-child(1) div[data-testid="stNumberInput"] input {
-                border-left: 3px solid #111111 !important;
-            }
-            .grid-border-top {
-                border-top: 3px solid #111111;
-            }
-            .grid-border-bottom-thick {
-                border-bottom: 3px solid #111111;
-                margin-bottom: 0px;
-            }
+            div[data-testid="stNumberInput"] button { display: none !important; }
+            div[data-testid="stColumn"]:nth-child(3n) div[data-testid="stNumberInput"] input { border-right: 3px solid #111111 !important; }
+            div[data-testid="stColumn"]:nth-child(1) div[data-testid="stNumberInput"] input { border-left: 3px solid #111111 !important; }
+            .grid-border-top { border-top: 3px solid #111111; }
+            .grid-border-bottom-thick { border-bottom: 3px solid #111111; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -259,7 +239,6 @@ def run_web():
                 row_vals.append(val)
             grid_input.append(row_vals)
             
-            # สั่งขีดเส้นขอบหนาแนวนอนสำหรับแถวที่ 3, 6 และ 9
             if (r + 1) % 3 == 0:
                 st.markdown('<div class="grid-border-bottom-thick"></div>', unsafe_allow_html=True)
 
@@ -286,6 +265,15 @@ def run_web():
         elif status == "MULTIPLE_SOLUTIONS":
             st.warning("⚠️ MULTIPLE SOLUTIONS: โจทย์มีคำตอบได้มากกว่า 1 แบบ")
             for err in details: st.write(f"- {err}")
+            
+            st.markdown("### 💡 ตัวอย่างรูปแบบคำตอบที่เป็นไปได้ (2 แบบแรก):")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**รูปแบบคำตอบที่ 1**")
+                st.markdown(render_sudoku_html(result[0], orig_board), unsafe_allow_html=True)
+            with col2:
+                st.markdown("**รูปแบบคำตอบที่ 2**")
+                st.markdown(render_sudoku_html(result[1], orig_board), unsafe_allow_html=True)
 
         elif status == "COMPLETED":
             st.info("ℹ️ ตารางนี้กรอกตัวเลขสมบูรณ์และถูกต้องอยู่แล้ว:")
