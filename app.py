@@ -1,15 +1,6 @@
 import sys
 import copy
-import numpy as np
 import streamlit as st
-
-try:
-    import cv2
-    import pytesseract
-    from PIL import Image
-    HAS_IMAGE_OCR = True
-except ImportError:
-    HAS_IMAGE_OCR = False
 
 def parse_txt_content(content_str):
     lines = content_str.strip().split('\n')
@@ -23,32 +14,6 @@ def parse_txt_content(content_str):
             board.append(row)
     if len(board) != 9:
         raise ValueError("รูปแบบตารางไม่ตรงตามขนาด 9x9")
-    return board
-
-def parse_image_to_board(image_bytes):
-    if not HAS_IMAGE_OCR:
-        raise RuntimeError("ระบบยังไม่ได้ติดตั้ง OpenCV หรือ PyTesseract")
-        
-    file_bytes = np.asarray(bytearray(image_bytes), dtype=np.uint8)
-    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    resized = cv2.resize(gray, (450, 450))
-    
-    board = []
-    for r in range(9):
-        row = []
-        for c in range(9):
-            cell = resized[r*50:(r+1)*50, c*50:(c+1)*50]
-            cell_cropped = cell[6:44, 6:44]
-            _, thresh = cv2.threshold(cell_cropped, 160, 255, cv2.THRESH_BINARY_INV)
-            
-            if cv2.countNonZero(thresh) < 25:
-                row.append(0)
-            else:
-                config = '--psm 10 --oem 3 -c tessedit_char_whitelist=123456789'
-                text = pytesseract.image_to_string(cell_cropped, config=config).strip()
-                row.append(int(text) if text.isdigit() else 0)
-        board.append(row)
     return board
 
 def check_initial_conflicts_detailed(board):
@@ -197,7 +162,7 @@ def run_web():
 
     input_mode = st.radio(
         "เลือกช่องทางการนำเข้าข้อมูล:",
-        ["📂 อัปโหลดไฟล์ .txt", "🖼️ อัปโหลดรูปภาพโจทย์", "✍️ กรอกตัวเลขบนตารางเว็บ"],
+        ["📂 อัปโหลดไฟล์ .txt", "✍️ กรอกตัวเลขบนตารางเว็บ"],
         horizontal=True
     )
 
@@ -211,16 +176,6 @@ def run_web():
                 board = parse_txt_content(content)
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการอ่านไฟล์: {e}")
-
-    elif input_mode == "🖼️ อัปโหลดรูปภาพโจทย์":
-        uploaded_img = st.file_uploader("อัปโหลดรูปภาพโซดุกุ (.png, .jpg, .jpeg)", type=["png", "jpg", "jpeg"])
-        if uploaded_img is not None:
-            try:
-                with st.spinner("กำลังสแกนตัวเลขจากรูปภาพ..."):
-                    board = parse_image_to_board(uploaded_img.read())
-                st.success("สแกนรูปภาพสำเร็จ! โปรดตรวจสอบความถูกต้องด้านล่างก่อนคำนวณ")
-            except Exception as e:
-                st.error(f"เกิดข้อผิดพลาดในการสแกนรูปภาพ: {e}")
 
     else:
         st.write("กรอกตัวเลข 1-9 ลงในช่อง (ใส่ 0 หรือปล่อยว่างไว้สำหรับช่องว่าง):")
