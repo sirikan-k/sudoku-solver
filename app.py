@@ -24,20 +24,17 @@ def check_initial_conflicts_detailed(board):
         for c in range(9):
             num = board[r][c]
             if num != 0:
-                # ตรวจสอบการซ้ำในแถวเดียวกัน
                 for c2 in range(c + 1, 9):
                     if board[r][c2] == num:
                         conflicts.append(f"เลข **{num}** ซ้ำกันในแถวที่ {r+1} (ตำแหน่งหลักที่ {c+1} และ {c2+1})")
-                # ตรวจสอบการซ้ำในหลัก (Column) เดียวกัน
                 for r2 in range(r + 1, 9):
                     if board[r2][c] == num:
                         conflicts.append(f"เลข **{num}** ซ้ำกันในหลักที่ {c+1} (ตำแหน่งแถวที่ {r+1} และ {r2+1})")
-                # ตรวจสอบการซ้ำในบล็อกย่อย 3x3
                 sr, sc = 3 * (r // 3), 3 * (c // 3)
                 for r2 in range(sr, sr + 3):
                     for c2 in range(sc, sc + 3):
                         if (r2 > r or (r2 == r and c2 > c)) and board[r2][c2] == num:
-                            if r2 != r and c2 != c: # ป้องกันการแจ้งซ้ำกับแถว/หลัก
+                            if r2 != r and c2 != c:
                                 conflicts.append(
                                     f"เลข **{num}** ซ้ำกันในบล็อก 3x3 เดียวกัน "
                                     f"(ตำแหน่ง แถว {r+1} หลัก {c+1} กับ แถว {r2+1} หลัก {c2+1})"
@@ -85,16 +82,13 @@ def process_sudoku(board):
     """วิเคราะห์ผลลัพธ์และส่งคืนประเภทสถานะ ตารางผลลัพธ์ และเหตุผลโดยละเอียด"""
     original_board = copy.deepcopy(board)
     
-    # 1. ตรวจสอบเงื่อนไขขัดแย้งในโจทย์เริ่มต้น
     conflicts = check_initial_conflicts_detailed(board)
     if conflicts:
         return "INITIAL_CONFLICT", None, conflicts, original_board
 
-    # 2. กรณีตารางกรอกครบอยู่แล้ว
     if find_empty(board) is None:
         return "COMPLETED", board, [], original_board
 
-    # 3. คำนวณแก้โจทย์ด้วย Backtracking
     solutions = []
     solve_and_count(board, solutions)
 
@@ -133,8 +127,8 @@ def render_sudoku_html(board, original_board=None):
         }
         .border-right-thick { border-right: 3px solid #111111 !important; }
         .border-bottom-thick { border-bottom: 3px solid #111111 !important; }
-        .given-number { color: #111111; } /* ตัวเลขโจทย์เดิม (สีดำ) */
-        .filled-number { color: #2563eb; } /* ตัวเลขที่อัลกอริทึมเติม (สีน้ำเงิน) */
+        .given-number { color: #111111; }
+        .filled-number { color: #2563eb; }
         .empty-cell { color: transparent; }
     </style>
     <div class="sudoku-container">
@@ -155,7 +149,6 @@ def render_sudoku_html(board, original_board=None):
                 display_val = "0"
             else:
                 display_val = str(val)
-                # แยกแยะว่าเดิมเป็น 0 แต่ถูกเติมใหม่หรือไม่
                 if original_board and original_board[r][c] == 0:
                     classes.append("filled-number")
                 else:
@@ -173,48 +166,78 @@ def run_web():
     st.title("🧩 Sudoku Solver Algorithm")
     st.caption("โครงงานแก้ปัญหาตารางโซดุกุด้วย Backtracking & Constraint Satisfaction")
 
-    uploaded_file = st.file_uploader("อัปโหลดไฟล์โจทย์ .txt (ขนาด 9x9)", type=["txt"])
+    input_mode = st.radio(
+        "เลือกช่องทางการนำเข้าข้อมูล:",
+        ["📂 อัปโหลดไฟล์ .txt", "✍️ กรอกตัวเลขบนตารางเว็บ"],
+        horizontal=True
+    )
 
-    if uploaded_file is not None:
-        try:
-            content = uploaded_file.read().decode("utf-8")
-            board = parse_txt_content(content)
-            
-            st.subheader("📋 ตารางข้อมูลนำเข้า (Input)")
-            st.markdown(render_sudoku_html(board), unsafe_allow_html=True)
+    board = None
 
-            status, result, details, orig_board = process_sudoku(board)
+    if input_mode == "📂 อัปโหลดไฟล์ .txt":
+        uploaded_file = st.file_uploader("เลือกไฟล์โจทย์ .txt (ขนาด 9x9)", type=["txt"])
+        if uploaded_file is not None:
+            try:
+                content = uploaded_file.read().decode("utf-8")
+                board = parse_txt_content(content)
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาดในการอ่านไฟล์: {e}")
 
-            st.subheader("🎯 ผลการประมวลผล (Output)")
-            
-            if status == "INITIAL_CONFLICT":
-                st.error("❌ NO SOLUTION: โจทย์มีเงื่อนไขขัดแย้งกันเองตั้งแต่เริ่มต้น")
-                st.markdown("**สาเหตุที่ไม่สามารถประมวลผลได้:**")
-                for err in details:
-                    st.write(f"- {err}")
+    else:
+        st.write("กรอกตัวเลข 1-9 ลงในช่อง (ใส่ 0 หรือปล่อยว่างไว้สำหรับช่องว่าง):")
+        grid_input = []
+        for r in range(9):
+            cols = st.columns(9)
+            row_vals = []
+            for c in range(9):
+                val = cols[c].number_input(
+                    label=f"r{r}c{c}",
+                    min_value=0,
+                    max_value=9,
+                    value=0,
+                    step=1,
+                    key=f"cell_{r}_{c}",
+                    label_visibility="collapsed"
+                )
+                row_vals.append(val)
+            grid_input.append(row_vals)
+        
+        if st.button("🧩 คำนวณแก้โจทย์", type="primary"):
+            board = grid_input
 
-            elif status == "NO_SOLUTION":
-                st.error("❌ NO SOLUTION: ไม่สามารถหาคำตอบที่ถูกต้องได้")
-                st.markdown("**สาเหตุที่ไม่สามารถประมวลผลได้:**")
-                for err in details:
-                    st.write(f"- {err}")
+    if board is not None:
+        st.subheader("📋 ตารางข้อมูลนำเข้า (Input)")
+        st.markdown(render_sudoku_html(board), unsafe_allow_html=True)
 
-            elif status == "MULTIPLE_SOLUTIONS":
-                st.warning("⚠️ MULTIPLE SOLUTIONS: โจทย์มีคำตอบได้มากกว่า 1 แบบ")
-                st.markdown("**ข้อสังเกต:**")
-                for err in details:
-                    st.write(f"- {err}")
+        status, result, details, orig_board = process_sudoku(board)
 
-            elif status == "COMPLETED":
-                st.info("ℹ️ ตารางนี้กรอกตัวเลขสมบูรณ์และถูกต้องอยู่แล้ว:")
-                st.markdown(render_sudoku_html(result, orig_board), unsafe_allow_html=True)
+        st.subheader("🎯 ผลการประมวลผล (Output)")
+        
+        if status == "INITIAL_CONFLICT":
+            st.error("❌ NO SOLUTION: โจทย์มีเงื่อนไขขัดแย้งกันเองตั้งแต่เริ่มต้น")
+            st.markdown("**สาเหตุที่ไม่สามารถประมวลผลได้:**")
+            for err in details:
+                st.write(f"- {err}")
 
-            elif status == "SUCCESS":
-                st.success("🎉 เติมตัวเลขสมบูรณ์ตามกติกา (ตัวเลขที่เติมใหม่แสดงด้วยสีน้ำเงิน):")
-                st.markdown(render_sudoku_html(result, orig_board), unsafe_allow_html=True)
+        elif status == "NO_SOLUTION":
+            st.error("❌ NO SOLUTION: ไม่สามารถหาคำตอบที่ถูกต้องได้")
+            st.markdown("**สาเหตุที่ไม่สามารถประมวลผลได้:**")
+            for err in details:
+                st.write(f"- {err}")
 
-        except Exception as e:
-            st.error(f"เกิดข้อผิดพลาดในการอ่านไฟล์: {e}")
+        elif status == "MULTIPLE_SOLUTIONS":
+            st.warning("⚠️ MULTIPLE SOLUTIONS: โจทย์มีคำตอบได้มากกว่า 1 แบบ")
+            st.markdown("**ข้อสังเกต:**")
+            for err in details:
+                st.write(f"- {err}")
+
+        elif status == "COMPLETED":
+            st.info("ℹ️ ตารางนี้กรอกตัวเลขสมบูรณ์และถูกต้องอยู่แล้ว:")
+            st.markdown(render_sudoku_html(result, orig_board), unsafe_allow_html=True)
+
+        elif status == "SUCCESS":
+            st.success("🎉 เติมตัวเลขสมบูรณ์ตามกติกา (ตัวเลขที่เติมใหม่แสดงด้วยสีน้ำเงิน):")
+            st.markdown(render_sudoku_html(result, orig_board), unsafe_allow_html=True)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and not sys.argv[1].endswith("app.py"):
