@@ -97,9 +97,19 @@ def process_sudoku(board):
 def render_sudoku_html(board, original_board=None):
     html = """
     <style>
-        .sudoku-container { display: flex; justify-content: center; margin: 10px 0; }
+        .sudoku-container { display: flex; justify-content: center; margin: 10px 0; width: 100%; overflow-x: auto; }
         .sudoku-table { border-collapse: collapse; border: 3px solid #111111; background-color: #ffffff; }
-        .sudoku-table td { width: 36px; height: 36px; text-align: center; font-size: 18px; font-weight: bold; border: 1px solid #b0b0b0; }
+        .sudoku-table td { 
+            width: 32px; 
+            height: 32px; 
+            text-align: center; 
+            font-size: 16px; 
+            font-weight: bold; 
+            border: 1px solid #b0b0b0; 
+        }
+        @media (min-width: 600px) {
+            .sudoku-table td { width: 40px; height: 40px; font-size: 20px; }
+        }
         .border-right-thick { border-right: 3px solid #111111 !important; }
         .border-bottom-thick { border-bottom: 3px solid #111111 !important; }
         .given-number { color: #111111; }
@@ -135,25 +145,51 @@ def render_sudoku_html(board, original_board=None):
 def run_web():
     st.set_page_config(page_title="Sudoku Solver", page_icon="🧩", layout="wide")
     
+    # CSS ปรับแต่งสำหรับทุกอุปกรณ์ (รองรับจอมือถือไม่ให้ตารางย้อนกลับมาต่อกันเป็นแถวตั้ง)
     st.markdown("""
         <style>
-            div[data-testid="stColumn"] { padding: 0px !important; margin: 0px !important; }
-            div[data-testid="stNumberInput"] { margin: 0px !important; padding: 0px !important; }
+            /* ป้องกัน Streamlit ยุบคอลัมน์ลงมาเป็นแถวตั้งในจอเล็ก */
+            div[data-testid="stHorizontalBlock"] {
+                flex-wrap: nowrap !important;
+                gap: 0px !important;
+            }
+            div[data-testid="stColumn"] { 
+                min-width: 0 !important;
+                flex: 1 1 0% !important;
+                padding: 0px !important; 
+                margin: 0px !important; 
+            }
+            div[data-testid="stNumberInput"] { 
+                margin: 0px !important; 
+                padding: 0px !important; 
+            }
             div[data-testid="stNumberInput"] input { 
                 text-align: center !important; 
                 font-weight: bold !important; 
-                font-size: 18px !important;
-                height: 40px !important;
+                font-size: 16px !important;
+                height: 36px !important;
+                padding: 0px !important;
                 border-radius: 0px !important;
                 border: 1px solid #b0b0b0 !important;
                 background-color: #ffffff !important;
                 color: #111111 !important;
             }
+            /* ซ่อนปุ่ม +/- */
             div[data-testid="stNumberInput"] button { display: none !important; }
+            
+            /* เส้นขอบหนา 3x3 */
             div[data-testid="stColumn"]:nth-child(3n) div[data-testid="stNumberInput"] input { border-right: 3px solid #111111 !important; }
             div[data-testid="stColumn"]:nth-child(1) div[data-testid="stNumberInput"] input { border-left: 3px solid #111111 !important; }
             .grid-border-top { border-top: 3px solid #111111; }
             .grid-border-bottom-thick { border-bottom: 3px solid #111111; }
+
+            /* ปรับขนาดกล่องบนคอมพิวเตอร์ให้อ่านง่ายขึ้น */
+            @media (min-width: 600px) {
+                div[data-testid="stNumberInput"] input { 
+                    font-size: 20px !important;
+                    height: 44px !important;
+                }
+            }
         </style>
     """, unsafe_allow_html=True)
 
